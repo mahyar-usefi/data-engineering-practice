@@ -1,6 +1,6 @@
 import glob
 import json
-from pprint import pprint, pformat
+import csv
 
 
 def find_files_path() -> list[str]:
@@ -33,15 +33,20 @@ def json2dict(old_dict: dict) -> dict:
 
     return json2dict(new_dict)
 
+def dict2csv(path: str, flattened: dict):
+    path = path.replace(".json", ".csv")
+    with open(path, "w", newline="") as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=flattened.keys())
+        writer.writeheader()
+        writer.writerow(flattened)
+
 def main():
     paths = find_files_path()
     for path in paths:
         with open(path, "r") as file:
-            old_dict = json.loads(file.read())
-            print(f"before: \n{pformat(old_dict)}")
-
-            new_dict = json2dict(old_dict)
-            print(f"after: \n{pformat(new_dict)}")
+            unflattened = json.loads(file.read())
+            flattened = json2dict(unflattened)
+            dict2csv(path, flattened)
 
 
 if __name__ == "__main__":
