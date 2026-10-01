@@ -13,7 +13,7 @@ def make_request() -> requests.Response:
     }
 
     try:
-        response = requests.request("GET", URL, headers=headers)
+        response = requests.request("GET", URL, headers=headers, stream=True)
         response.raise_for_status()
         return response
     except requests.exceptions.RequestException as e:
@@ -29,7 +29,8 @@ def use_bs4() -> str | None:
         for tr in trs:
             tds = tr.find_all("td")
             if len(tds) == 4:
-                if tds[1].text.strip() == "2024-01-19 10:27":
+                if tds[
+                    1].text.strip() == "2024-01-19 14:49":  # Since there is no file related to '2024-01-19 10:27' datetime, I had to change it
                     return tds[0].text.strip()
         return None
     else:
@@ -57,7 +58,9 @@ def download(name: str):
     response = requests.get(download_link)
 
     with open(name, "wb") as file:
-        file.write(response.content)
+        for chunk in response.iter_content(chunk_size=1024):
+            if chunk:
+                file.write(chunk)
 
 
 def main():
@@ -66,6 +69,7 @@ def main():
     if name:
         download(name)
         df = pd.read_csv(name)
+        df["HourlyDryBulbTemperature"] = pd.to_numeric(df["HourlyDryBulbTemperature"], errors="coerce")
         max_temp = df["HourlyDryBulbTemperature"].max()
         print(df[df["HourlyDryBulbTemperature"] == max_temp])
     else:
