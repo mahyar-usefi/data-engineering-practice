@@ -1,10 +1,8 @@
-import requests
-
 import os
 import shutil
-
+import asyncio
+import aiohttp
 import zipfile
-
 
 download_uris = [
     "https://divvy-tripdata.s3.amazonaws.com/Divvy_Trips_2018_Q4.zip",
@@ -22,33 +20,54 @@ cur_path = os.path.dirname(__file__)
 def create_download_dir():
     os.makedirs("downloads", exist_ok=True)
 
-def download_uri(uri: str):
+
+async def download_uri(session: aiohttp.ClientSession, uri: str):
     filename = uri.split("/")[-1]
 
-    zip_file = os.path.join(cur_path, f"downloads/{filename}")
-    download = os.path.join(cur_path, f"downloads")
+    download_dir = os.path.join(cur_path, "downloads")
+    zip_file = os.path.join(download_dir, filename)
 
-    response = requests.get(uri)
+    try:
+        async with session.get(uri) as response:
+            response.raise_for_status()
 
-    with open(zip_file, "wb") as file:
-        file.write(response.content)
+            with open(zip_file, "wb") as file:
+                async for chunk in response.content.iter_chunked(512 * 1024):
+                    file.write(chunk)
 
-    with zipfile.ZipFile(zip_file, "r") as zip_ref:
-        zip_ref.extractall(download)
+        with zipfile.ZipFile(zip_file, "r") as zip_ref:
+            zip_ref.extractall(download_dir)
 
-    if os.path.isfile(zip_file):
-        os.remove(zip_file)
+        if os.path.isfile(zip_file):
+            os.remove(zip_file)
+
+    except aiohttp.ClientResponseError as err:
+        print(f"err\n"
+              f"{uri} is not a valid URI.")
+    except zipfile.BadZipFile:
+        print(f"File {zip_file} is not a valid zip file.")
+    except Exception as e:
+        print(e)
+
+
+async def main():
+    create_download_dir()
+
+    async with aiohttp.ClientSession() as session:
+        tasks = [download_uri(session, uri) for uri in download_uris]
+        await asyncio.gather(*tasks)
 
     # The folder __MACOSX are created by macOS, try to remove it
-    macosx = os.path.join(download, "__MACOSX")
+    exercise_dir = cur_path
+    macosx = os.path.join(exercise_dir, "__MACOSX")
     if os.path.isdir(macosx):
         shutil.rmtree(macosx)
 
-def main():
-    create_download_dir()
-    for uri in download_uris:
-        download_uri(uri)
+    download_dir = os.path.join(cur_path, f"downloads")
+    macosx = os.path.join(download_dir, "__MACOSX")
+    if os.path.isdir(macosx):
+        shutil.rmtree(macosx)
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
